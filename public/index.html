@@ -23,7 +23,7 @@
       </nav>
       <p id="notice" class="message banner" role="status" hidden></p>
       <section id="entry">
-        <div class="intro"><h1>Submit a product</h1><p class="muted">Send product details, prices and original images together.</p></div>
+        <div class="intro"><h1 id="entry-title" tabindex="-1">Submit a product</h1><p id="entry-description" class="muted">Send product details, prices and original images together.</p></div>
         <form id="product-form">
           <div class="form-layout">
             <div class="card">
@@ -64,12 +64,13 @@
           </div>
           <div class="submit-row">
             <p id="submit-message" class="message" role="status"></p>
+            <button id="cancel-edit" class="secondary" type="button" hidden>Back to history</button>
             <button id="submit" class="primary">Submit product</button>
           </div>
         </form>
       </section>
       <section id="history" hidden>
-        <div class="intro"><h1>Submission history</h1><p class="muted">Review the product details and images you have sent.</p></div>
+        <div class="intro"><h1 id="history-title" tabindex="-1">Submission history</h1><p class="muted">Review the product details and images you have sent.</p></div>
         <p id="history-message" class="message" role="status"></p>
         <div id="records" class="records"></div>
         <button id="more" class="secondary" hidden>Load more</button>

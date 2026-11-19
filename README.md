@@ -10,6 +10,10 @@ A password-free client portal for product details and original images. The clien
 
 Images and product JSON are stored under images/ and products/ in the linked Blob store. Find them in Vercel under the project's Storage tab. Anyone with access to the portal can submit and read the shared history.
 
+## Editing submissions
+
+Set `PORTAL_EDIT_KEY_HASH` to the SHA-256 hex digest of a random 32-byte base64url key. Give the client the portal URL with `#edit=<key>` privately. The link opens Submission history and lets the client edit product details and add images to any existing submission. Saved images stay attached. The normal portal URL continues to accept submissions and display history.
+
 ## Local development
 
 Run npm ci, then npm run dev. Use a separate test Blob store for development and provide local Vercel OIDC credentials or a test store's BLOB_READ_WRITE_TOKEN in .env.

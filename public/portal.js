@@ -13,6 +13,9 @@ let pendingSave;
 let busy = false;
 let historyBusy = false;
 let nextPage;
+let editing;
+let editorKey;
+let editorAllowed = false;
 
 function message(id, text, error = false) {
   const element = byId(id);
@@ -27,9 +30,14 @@ function notice(text) {
 
 async function api(action, body, query = {}) {
   const params = new URLSearchParams({ action, ...query });
-  const options = body === undefined ? {} : {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  };
+  const headers = {};
+  if (action === 'edit-access' || action === 'update') headers['X-Portal-Edit-Key'] = editorKey;
+  const options = { headers };
+  if (body !== undefined) {
+    options.method = 'POST';
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(body);
+  }
   const response = await fetch('/api/portal?' + params, options);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -58,27 +66,26 @@ function renderFiles() {
   byId('file-list').replaceChildren(...chosen.map((item, index) => {
     const row = element('li');
     const icon = element('span', 'IMG', 'file-icon');
-    if (item.url) {
-      const image = element('img');
-      image.src = item.url;
-      image.alt = '';
-      image.addEventListener('error', () => image.replaceWith(icon));
-      row.append(image);
-    } else {
-      row.append(icon);
+    const image = element('img');
+    image.src = item.url ?? '/api/portal?action=preview&id=' + encodeURIComponent(item.id);
+    image.alt = '';
+    image.addEventListener('error', () => image.replaceWith(icon));
+    row.append(image);
+    const size = item.file ? ' (' + (item.file.size / 1048576).toFixed(1) + ' MB)' : '';
+    const name = element('span', item.name + size, 'file-name');
+    row.append(name);
+    if (item.file) {
+      const remove = element('button', 'Remove');
+      remove.type = 'button';
+      remove.disabled = busy || Boolean(pendingSave);
+      remove.setAttribute('aria-label', 'Remove ' + item.name);
+      remove.addEventListener('click', () => {
+        URL.revokeObjectURL(item.url);
+        chosen.splice(index, 1);
+        renderFiles();
+      });
+      row.append(remove);
     }
-    const size = (item.file.size / 1048576).toFixed(1) + ' MB';
-    const name = element('span', item.file.name + ' (' + size + ')', 'file-name');
-    const remove = element('button', 'Remove');
-    remove.type = 'button';
-    remove.disabled = busy || Boolean(pendingSave);
-    remove.setAttribute('aria-label', 'Remove ' + item.file.name);
-    remove.addEventListener('click', () => {
-      if (item.url) URL.revokeObjectURL(item.url);
-      chosen.splice(index, 1);
-      renderFiles();
-    });
-    row.append(name, remove);
     return row;
   }));
 }
@@ -93,9 +100,9 @@ function addFiles(files) {
       errors.push(file.name + ' could not be added. Choose a supported image with content and a filename up to 255 characters.');
       continue;
     }
-    if (chosen.some(item => item.file.name === file.name && item.file.size === file.size &&
+    if (chosen.some(item => item.file?.name === file.name && item.file.size === file.size &&
       item.file.lastModified === file.lastModified)) continue;
-    chosen.push({ file, mime, url: URL.createObjectURL(file) });
+    chosen.push({ file, mime, name: file.name, url: URL.createObjectURL(file) });
   }
   renderFiles();
   message('file-message', errors.join('\n'), true);
@@ -138,10 +145,78 @@ function lockForm() {
     control.disabled = busy || Boolean(pendingSave);
   }
   byId('submit').disabled = busy;
-  byId('submit').textContent = busy ? 'Saving...' : pendingSave ? 'Retry save' : 'Submit product';
-  byId('history-tab').disabled = busy;
+  byId('submit').textContent = busy ? 'Saving...' : pendingSave ? 'Retry save' : editing ? 'Save changes' : 'Submit product';
+  byId('cancel-edit').disabled = busy;
+  byId('history-tab').disabled = busy || Boolean(editing);
+  byId('form-tab').disabled = Boolean(editing);
   renderFiles();
 }
+
+function fillForm(fields) {
+  form.reset();
+  for (const [key, value] of Object.entries(fields)) {
+    const input = form.elements.namedItem(key);
+    if (input?.name) input.value = value ?? '';
+  }
+}
+
+function setEditView(active) {
+  byId('entry-title').textContent = active ? 'Edit submission' : 'Submit a product';
+  byId('entry-description').textContent = active
+    ? 'Update the product details or add more images, then save your changes.'
+    : 'Send product details, prices and original images together.';
+  byId('cancel-edit').hidden = !active;
+}
+
+function startEdit(record) {
+  if (busy || editing) return;
+  const draft = {
+    fields: pendingSave ?? Object.fromEntries(new FormData(form)),
+    files: chosen.splice(0), productId, pendingSave,
+    submitMessage: byId('submit-message').textContent,
+    submitError: byId('submit-message').classList.contains('error'),
+    fileMessage: byId('file-message').textContent,
+  };
+  editing = { baseRevision: record.revision ?? null, draft };
+  productId = record.id;
+  pendingSave = undefined;
+  chosen.push(...record.images.map(image => ({ ...image, uploaded: true })));
+  fillForm(record);
+  message('submit-message', '');
+  message('file-message', '');
+  notice('');
+  setEditView(true);
+  byId('history').hidden = true;
+  byId('entry').hidden = false;
+  lockForm();
+  byId('entry-title').focus();
+}
+
+function clearFiles() {
+  for (const item of chosen.splice(0)) {
+    if (item.url) URL.revokeObjectURL(item.url);
+  }
+}
+
+function restoreDraft() {
+  const { draft } = editing;
+  editing = undefined;
+  clearFiles();
+  chosen.push(...draft.files);
+  productId = draft.productId;
+  pendingSave = draft.pendingSave;
+  fillForm(draft.fields);
+  message('submit-message', draft.submitMessage, draft.submitError);
+  message('file-message', draft.fileMessage, true);
+  setEditView(false);
+}
+
+byId('cancel-edit').addEventListener('click', async () => {
+  restoreDraft();
+  lockForm();
+  await openHistory();
+  byId('history-title').focus();
+});
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -169,18 +244,25 @@ form.addEventListener('submit', async event => {
           item.uploaded = true;
         }
       }
-      pendingSave = { ...fields, id: productId, images: chosen.map(item => ({ id: item.id, name: item.file.name })) };
+      pendingSave = { ...fields, id: productId, images: chosen.map(item => ({ id: item.id, name: item.name })) };
+      if (editing) Object.assign(pendingSave, { baseRevision: editing.baseRevision, revision: crypto.randomUUID() });
     }
     message('submit-message', 'Saving product details...');
-    const saved = await api('save', pendingSave);
-    chosen.splice(0).forEach(item => URL.revokeObjectURL(item.url));
-    form.reset();
-    productId = undefined;
-    pendingSave = undefined;
-    message('submit-message', '');
-    message('file-message', '');
-    notice(saved.name + ' was saved.');
+    const saved = await api(editing ? 'update' : 'save', pendingSave);
+    if (editing) {
+      restoreDraft();
+      notice('Changes saved for ' + saved.name + '.');
+    } else {
+      clearFiles();
+      form.reset();
+      productId = undefined;
+      pendingSave = undefined;
+      message('submit-message', '');
+      message('file-message', '');
+      notice(saved.name + ' was saved.');
+    }
     await openHistory(saved);
+    byId('history-title').focus();
   } catch (error) {
     if (error.status === 400) pendingSave = undefined;
     message('submit-message', error.message, true);
@@ -216,6 +298,12 @@ function renderRecord(record) {
     if (record[key]) fields.append(element('dt', label), element('dd', record[key]));
   }
   const images = element('ul', '', 'gallery');
+  const actions = element('div', '', 'record-actions');
+  if (editorAllowed) {
+    const edit = element('button', 'Edit submission', 'primary');
+    edit.addEventListener('click', () => startEdit(record));
+    actions.append(edit);
+  }
   const download = element('button', 'Download product data', 'secondary');
   download.addEventListener('click', () => {
     downloadFile(new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }),
@@ -238,7 +326,8 @@ function renderRecord(record) {
       images.append(item);
     }
   });
-  details.append(fields, images, download);
+  actions.append(download);
+  details.append(fields, images, actions);
   return details;
 }
 
@@ -249,7 +338,9 @@ async function loadHistory(append = false, saved) {
   message('history-message', 'Loading submissions...');
   if (!append) {
     nextPage = undefined;
-    byId('records').replaceChildren(...(saved ? [renderRecord(saved)] : []));
+    const savedRow = saved && renderRecord(saved);
+    if (savedRow) savedRow.open = true;
+    byId('records').replaceChildren(...(savedRow ? [savedRow] : []));
   }
   try {
     const data = await api('history', undefined, nextPage ? { page: nextPage } : {});
@@ -280,3 +371,21 @@ byId('form-tab').addEventListener('click', () => {
 });
 byId('history-tab').addEventListener('click', () => openHistory());
 byId('more').addEventListener('click', () => loadHistory(Boolean(nextPage)));
+
+async function connectEditor() {
+  const key = new URLSearchParams(location.hash.slice(1)).get('edit');
+  editorKey = key ?? sessionStorage.getItem('portal-edit-key');
+  if (key) history.replaceState(null, '', location.pathname + location.search);
+  if (!editorKey) return;
+  try {
+    await api('edit-access');
+    editorAllowed = true;
+    sessionStorage.setItem('portal-edit-key', editorKey);
+    if (key || !byId('history').hidden) await openHistory();
+  } catch (error) {
+    sessionStorage.removeItem('portal-edit-key');
+    notice(error.message);
+  }
+}
+
+void connectEditor();
