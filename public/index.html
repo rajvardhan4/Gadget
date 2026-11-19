@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#122b2a">
+  <title>Product Portal | Gadgets Factory Direct</title>
+  <link rel="stylesheet" href="/portal.css">
+  <script type="module" src="/portal.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="shell top-inner">
+      <div class="brand"><span class="mark" aria-hidden="true">G</span><span>Gadgets Factory Direct<small>Product Portal</small></span></div>
+      <button id="logout" class="quiet" hidden>Sign out</button>
+    </div>
+  </header>
+  <main class="shell">
+    <noscript><p>Enable JavaScript to use the product portal.</p></noscript>
+    <p id="boot" role="status">Checking portal access...</p>
+    <section id="access" class="access card" hidden>
+      <h1>Product Portal</h1>
+      <p class="muted">Enter your access password to submit products and view your previous submissions.</p>
+      <form id="login">
+        <label>Access password<input name="password" type="password" required autocomplete="current-password"></label>
+        <button class="primary">Sign in</button>
+        <p id="login-message" class="message" role="status"></p>
+      </form>
+    </section>
+    <section id="portal" hidden>
+      <nav class="navigation" aria-label="Portal">
+        <button id="form-tab" aria-current="page">New submission</button>
+        <button id="history-tab">Submission history</button>
+      </nav>
+      <p id="notice" class="message banner" role="status" hidden></p>
+      <section id="entry">
+        <div class="intro"><h1>Submit a product</h1><p class="muted">Send product details, prices and original images together.</p></div>
+        <form id="product-form">
+          <div class="form-layout">
+            <div class="card">
+              <h2>Product details</h2>
+              <div class="fields">
+                <label>Product name <span>*</span><input name="name" required maxlength="180" placeholder="65W Multi-Port GaN Fast Wall Charger"></label>
+                <label>Category <span>*</span><input name="category" required maxlength="120" list="categories" placeholder="Choose or enter a category"></label>
+                <datalist id="categories"><option value="Charging &amp; Power Solutions"></option></datalist>
+                <label>Color options<input name="colors" maxlength="500" placeholder="Classic White, Carbon Black"></label>
+                <div class="price-row">
+                  <label>B2B wholesale (INR)<input name="wholesale" inputmode="decimal" pattern="[0-9]{1,10}(\.[0-9]{1,2})?" placeholder="340"></label>
+                  <label>Retail MRP (INR)<input name="mrp" inputmode="decimal" pattern="[0-9]{1,10}(\.[0-9]{1,2})?" placeholder="999"></label>
+                </div>
+                <label>Description<textarea name="description" maxlength="8000" rows="4" placeholder="Describe the product and its main uses"></textarea></label>
+                <label>Key features<textarea name="features" maxlength="8000" rows="3" placeholder="Add one feature per line"></textarea></label>
+                <label>Notes<textarea name="notes" maxlength="4000" rows="2" placeholder="Pricing units, compatibility or any other details"></textarea></label>
+              </div>
+            </div>
+            <aside class="card photos">
+              <h2>Product images <span>*</span></h2>
+              <p class="muted">Add photos of each angle or color. Up to 50 MB per image.</p>
+              <div id="drop" class="drop">
+                <span class="upload-icon" aria-hidden="true">&#8593;</span>
+                <label class="file-label">Choose images<input id="files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,.heic,.heif"></label>
+                <small>or drag and drop here</small>
+              </div>
+              <p id="file-message" class="message" role="status"></p>
+              <ul id="file-list" class="file-list"></ul>
+            </aside>
+          </div>
+          <div class="submit-row">
+            <p id="submit-message" class="message" role="status"></p>
+            <button id="submit" class="primary">Submit product</button>
+          </div>
+        </form>
+      </section>
+      <section id="history" hidden>
+        <div class="intro"><h1>Submission history</h1><p class="muted">Review the product details and images you have sent.</p></div>
+        <p id="history-message" class="message" role="status"></p>
+        <div id="records" class="records"></div>
+        <button id="more" class="secondary" hidden>Load more</button>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
