@@ -3,7 +3,6 @@ import { uploadPresigned } from '@vercel/blob/client';
 const byId = id => document.getElementById(id);
 const fileInput = byId('files');
 const form = byId('product-form');
-const editAccessDialog = byId('edit-access-dialog');
 const chosen = [];
 const mimeByExt = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
@@ -15,10 +14,7 @@ let busy = false;
 let historyBusy = false;
 let nextPage;
 let editing;
-let editorKey;
-let editorAllowed = false;
-let editorConnection;
-let requestedEdit;
+let editorSetup;
 
 function message(id, text, error = false) {
   const element = byId(id);
@@ -33,14 +29,9 @@ function notice(text) {
 
 async function api(action, body, query = {}) {
   const params = new URLSearchParams({ action, ...query });
-  const headers = {};
-  if (action === 'edit-access' || action === 'update') headers['X-Portal-Edit-Key'] = editorKey;
-  const options = { headers };
-  if (body !== undefined) {
-    options.method = 'POST';
-    headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
-  }
+  const options = body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  };
   const response = await fetch('/api/portal?' + params, options);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -303,13 +294,19 @@ function renderRecord(record) {
   const images = element('ul', '', 'gallery');
   const actions = element('div', '', 'record-actions');
   const edit = element('button', 'Edit submission', 'primary');
+  const editMessage = element('p', '', 'message error');
+  editMessage.setAttribute('role', 'status');
   edit.addEventListener('click', async () => {
-    await editorConnection;
-    if (editorAllowed) {
-      startEdit(record);
-    } else if (!editAccessDialog.open) {
-      requestedEdit = record;
-      editAccessDialog.showModal();
+    edit.disabled = true;
+    editMessage.textContent = '';
+    try {
+      await editorSetup;
+      await api('edit-access');
+      if (!byId('history').hidden) startEdit(record);
+    } catch (error) {
+      editMessage.textContent = error.message;
+    } finally {
+      edit.disabled = false;
     }
   });
   actions.append(edit);
@@ -336,7 +333,7 @@ function renderRecord(record) {
     }
   });
   actions.append(download);
-  details.append(fields, images, actions);
+  details.append(fields, images, actions, editMessage);
   return details;
 }
 
@@ -381,66 +378,22 @@ byId('form-tab').addEventListener('click', () => {
 byId('history-tab').addEventListener('click', () => openHistory());
 byId('more').addEventListener('click', () => loadHistory(Boolean(nextPage)));
 
-function keyFromHash(hash) {
-  return new URLSearchParams(hash.slice(1)).get('edit');
-}
-
-async function authorizeEditor(key) {
-  editorKey = key;
-  editorAllowed = false;
-  await api('edit-access');
-  editorAllowed = true;
-  sessionStorage.setItem('portal-edit-key', key);
-}
-
-async function connectEditor() {
-  const key = keyFromHash(location.hash);
-  const savedKey = key ?? sessionStorage.getItem('portal-edit-key');
-  if (key) history.replaceState(null, '', location.pathname + location.search);
-  if (!savedKey) return;
+async function rememberEditAccess() {
+  const linkKey = new URLSearchParams(location.hash.slice(1)).get('edit');
+  if (linkKey) history.replaceState(null, '', location.pathname + location.search);
+  const key = linkKey ?? sessionStorage.getItem('portal-edit-key');
+  if (!key) return;
   try {
-    await authorizeEditor(savedKey);
-    if (key && !editing) await openHistory();
+    await api('edit-access', { key });
+    sessionStorage.removeItem('portal-edit-key');
+    if (linkKey && !editing) await openHistory();
   } catch (error) {
     if (error.status === 403) sessionStorage.removeItem('portal-edit-key');
     notice(error.message);
   }
 }
 
-byId('edit-access-form').addEventListener('submit', async event => {
-  event.preventDefault();
-  const button = byId('unlock-edit');
-  if (button.disabled) return;
-  const link = new URL(byId('edit-link').value);
-  const key = link.origin === location.origin && keyFromHash(link.hash);
-  if (!key) {
-    message('edit-access-message', 'Paste the full private edit link for this portal.', true);
-    return;
-  }
-  button.disabled = true;
-  const record = requestedEdit;
-  message('edit-access-message', '');
-  try {
-    await authorizeEditor(key);
-    if (editAccessDialog.open && requestedEdit === record) {
-      editAccessDialog.close();
-      startEdit(record);
-    }
-  } catch (error) {
-    if (editAccessDialog.open) message('edit-access-message', error.message, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-byId('cancel-edit-access').addEventListener('click', () => editAccessDialog.close());
-editAccessDialog.addEventListener('close', () => {
-  requestedEdit = undefined;
-  byId('edit-access-form').reset();
-  message('edit-access-message', '');
-});
-
-editorConnection = connectEditor();
+editorSetup = rememberEditAccess();
 window.addEventListener('hashchange', () => {
-  editorConnection = connectEditor();
+  editorSetup = rememberEditAccess();
 });

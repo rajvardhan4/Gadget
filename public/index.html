@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#122b2a">
   <title>Product Portal | Gadgets Factory Direct</title>
-  <link rel="stylesheet" href="/portal.css?v=edit-link">
-  <script type="module" src="/portal.js?v=edit-link"></script>
+  <link rel="stylesheet" href="/portal.css?v=direct-edit">
+  <script type="module" src="/portal.js?v=direct-edit"></script>
 </head>
 <body>
   <header class="top">
@@ -77,18 +77,5 @@
       </section>
     </section>
   </main>
-  <dialog id="edit-access-dialog" class="card" aria-labelledby="edit-access-title">
-    <h2 id="edit-access-title">Open edit access</h2>
-    <p class="muted">Paste the private edit link shared with you to edit this submission.</p>
-    <form id="edit-access-form">
-      <label for="edit-link">Private edit link</label>
-      <input id="edit-link" type="url" required autocomplete="off" spellcheck="false" autofocus>
-      <p id="edit-access-message" class="message error" role="status"></p>
-      <div class="record-actions">
-        <button id="unlock-edit" class="primary">Continue to edit</button>
-        <button id="cancel-edit-access" class="secondary" type="button">Cancel</button>
-      </div>
-    </form>
-  </dialog>
 </body>
 </html>

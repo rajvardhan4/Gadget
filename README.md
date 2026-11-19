@@ -12,7 +12,7 @@ Images and product JSON are stored under images/ and products/ in the linked Blo
 
 ## Editing submissions
 
-Set `PORTAL_EDIT_KEY_HASH` to the SHA-256 hex digest of a random 32-byte base64url key. Give the client the portal URL with `#edit=<key>` privately. The link opens Submission history and lets the client edit product details and add images to any existing submission. Saved images stay attached. The normal portal URL continues to accept submissions and display history.
+Set `PORTAL_EDIT_KEY_HASH` to the SHA-256 hex digest of a random 32-byte base64url key. Share the portal URL with `#edit=<key>` privately. Opening it grants edit access to that browser for seven days. The normal portal link then also works in that browser. Under Submission history, choose a product and click Edit submission. Saving updates the existing entry and keeps previously saved images attached.
 
 ## Local development
 

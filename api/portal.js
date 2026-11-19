@@ -48,13 +48,16 @@ async function readRecord(pathname) {
   return (await readRecordBlob(pathname))?.record ?? null;
 }
 
-function requireEditor(req) {
-  const key = req.headers['x-portal-edit-key'];
+function requireEditor(key) {
   const hash = process.env.PORTAL_EDIT_KEY_HASH ?? '';
   const authorized = typeof key === 'string' && /^[A-Za-z0-9_-]{43}$/.test(key) &&
     /^[a-f0-9]{64}$/.test(hash) &&
     timingSafeEqual(createHash('sha256').update(key).digest(), Buffer.from(hash, 'hex'));
-  requireValue(authorized, 'Open the private edit link to change submissions.', 403);
+  requireValue(authorized, 'Open the private edit link once in this browser to edit submissions.', 403);
+}
+
+function editorCookie(req) {
+  return /(?:^|;\s*)portal_editor=([A-Za-z0-9_-]{43})(?:;|$)/.exec(req.headers.cookie ?? '')?.[1];
 }
 
 async function history(cursor) {
@@ -190,15 +193,22 @@ export default async function handler(req, res) {
       }
       if (action === 'upload') return res.json(await uploadTicket(req, body));
       if (action === 'save') return res.json(await saveProduct(body));
+      if (action === 'edit-access') {
+        requireEditor(body.key);
+        const secure = process.env.VERCEL ? '; Secure' : '';
+        res.setHeader('Set-Cookie', 'portal_editor=' + body.key +
+          '; HttpOnly; SameSite=Strict; Path=/api/portal; Max-Age=604800' + secure);
+        return res.json({ allowed: true });
+      }
       if (action === 'update') {
-        requireEditor(req);
+        requireEditor(editorCookie(req));
         return res.json(await saveProduct(body, true));
       }
     }
     if (req.method === 'GET') {
       if (action === 'history') return res.json(await history(url.searchParams.get('page') ?? undefined));
       if (action === 'edit-access') {
-        requireEditor(req);
+        requireEditor(editorCookie(req));
         return res.json({ allowed: true });
       }
       if (action === 'preview' || action === 'download') {
