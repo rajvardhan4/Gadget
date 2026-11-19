@@ -39,13 +39,6 @@ async function api(action, body, query = {}) {
   return data;
 }
 
-function setAccess(signedIn) {
-  byId('boot').hidden = true;
-  byId('access').hidden = signedIn;
-  byId('portal').hidden = !signedIn;
-  byId('logout').hidden = !signedIn;
-}
-
 function setTab(history) {
   byId('history').hidden = !history;
   byId('entry').hidden = history;
@@ -147,12 +140,11 @@ async function uploadImage(item, index) {
 }
 
 function lockForm() {
-  for (const control of form.querySelectorAll('input, textarea')) {
+  for (const control of form.querySelectorAll('input, select, textarea')) {
     control.disabled = busy || Boolean(pendingSave);
   }
   byId('submit').disabled = busy;
   byId('submit').textContent = busy ? 'Saving...' : pendingSave ? 'Retry save' : 'Submit product';
-  byId('logout').disabled = busy;
   byId('history-tab').disabled = busy;
   renderFiles();
 }
@@ -198,7 +190,6 @@ form.addEventListener('submit', async event => {
   } catch (error) {
     if (error.status === 400) pendingSave = undefined;
     message('submit-message', error.message, true);
-    if (error.status === 401) setAccess(false);
   } finally {
     busy = false;
     lockForm();
@@ -303,7 +294,6 @@ async function loadHistory(append = false, saved) {
     message('history-message', byId('records').childElementCount ? '' : 'No products submitted yet.');
   } catch (error) {
     message('history-message', error.message, true);
-    if (error.status === 401) setAccess(false);
     byId('more').textContent = 'Retry history';
     byId('more').hidden = false;
     return;
@@ -325,38 +315,3 @@ byId('form-tab').addEventListener('click', () => {
 });
 byId('history-tab').addEventListener('click', () => openHistory());
 byId('more').addEventListener('click', () => loadHistory(Boolean(nextPage)));
-
-byId('login').addEventListener('submit', async event => {
-  event.preventDefault();
-  const login = event.currentTarget;
-  const button = login.querySelector('button');
-  button.disabled = true;
-  message('login-message', 'Signing in...');
-  try {
-    await api('login', Object.fromEntries(new FormData(login)));
-    login.reset();
-    message('login-message', '');
-    setAccess(true);
-  } catch (error) {
-    message('login-message', error.message, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-byId('logout').addEventListener('click', async () => {
-  try {
-    await api('logout', {});
-    location.reload();
-  } catch (error) {
-    notice(error.message);
-  }
-});
-
-try {
-  await api('session');
-  setAccess(true);
-} catch (error) {
-  setAccess(false);
-  if (error.status !== 401) message('login-message', error.message, true);
-}

@@ -12,22 +12,11 @@
   <header class="top">
     <div class="shell top-inner">
       <div class="brand"><span class="mark" aria-hidden="true">G</span><span>Gadgets Factory Direct<small>Product Portal</small></span></div>
-      <button id="logout" class="quiet" hidden>Sign out</button>
     </div>
   </header>
   <main class="shell">
     <noscript><p>Enable JavaScript to use the product portal.</p></noscript>
-    <p id="boot" role="status">Checking portal access...</p>
-    <section id="access" class="access card" hidden>
-      <h1>Product Portal</h1>
-      <p class="muted">Enter your access password to submit products and view your previous submissions.</p>
-      <form id="login">
-        <label>Access password<input name="password" type="password" required autocomplete="current-password"></label>
-        <button class="primary">Sign in</button>
-        <p id="login-message" class="message" role="status"></p>
-      </form>
-    </section>
-    <section id="portal" hidden>
+    <section id="portal">
       <nav class="navigation" aria-label="Portal">
         <button id="form-tab" aria-current="page">New submission</button>
         <button id="history-tab">Submission history</button>
@@ -41,8 +30,16 @@
               <h2>Product details</h2>
               <div class="fields">
                 <label>Product name <span>*</span><input name="name" required maxlength="180" placeholder="65W Multi-Port GaN Fast Wall Charger"></label>
-                <label>Category <span>*</span><input name="category" required maxlength="120" list="categories" placeholder="Choose or enter a category"></label>
-                <datalist id="categories"><option value="Charging &amp; Power Solutions"></option></datalist>
+                <label>Category <span>*</span>
+                  <select name="category" required>
+                    <option value="" disabled selected>Select a category</option>
+                    <option>Protection and Screen Accessories</option>
+                    <option>Smart Wearables &amp; Accessories</option>
+                    <option>Audio &amp; Lifestyle Electronics</option>
+                    <option>Gaming &amp; Utility Mobile Tools</option>
+                    <option>Power and Fast Charging Tech</option>
+                  </select>
+                </label>
                 <label>Color options<input name="colors" maxlength="500" placeholder="Classic White, Carbon Black"></label>
                 <div class="price-row">
                   <label>B2B wholesale (INR)<input name="wholesale" inputmode="decimal" pattern="[0-9]{1,10}(\.[0-9]{1,2})?" placeholder="340"></label>

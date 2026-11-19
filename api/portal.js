@@ -5,6 +5,13 @@ const upload = 'https://www.googleapis.com/upload/drive/v3';
 const chunkSize = 2 * 1024 * 1024;
 const maxImage = 50 * 1024 * 1024;
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif']);
+const categories = new Set([
+  'Protection and Screen Accessories',
+  'Smart Wearables & Accessories',
+  'Audio & Lifestyle Electronics',
+  'Gaming & Utility Mobile Tools',
+  'Power and Fast Charging Tech',
+]);
 const idPattern = /^[\w-]{8,180}$/;
 let cachedToken;
 
@@ -27,7 +34,7 @@ function equal(a, b) {
 
 function sign(data) {
   const payload = Buffer.from(JSON.stringify(data)).toString('base64url');
-  const signature = createHmac('sha256', process.env.SESSION_SECRET).update(payload).digest('base64url');
+  const signature = createHmac('sha256', process.env.GOOGLE_REFRESH_TOKEN).update('gadget-upload:' + payload).digest('base64url');
   return payload + '.' + signature;
 }
 
@@ -35,7 +42,7 @@ function verify(token, kind) {
   if (typeof token !== 'string') return;
   const [payload, signature] = token.split('.');
   if (!signature) return;
-  const expected = createHmac('sha256', process.env.SESSION_SECRET).update(payload).digest('base64url');
+  const expected = createHmac('sha256', process.env.GOOGLE_REFRESH_TOKEN).update('gadget-upload:' + payload).digest('base64url');
   if (!equal(signature, expected)) return;
   const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
   if (data.kind === kind && data.expires > Date.now()) return data;
@@ -198,6 +205,7 @@ async function saveProduct(body) {
   ]) {
     record[key] = inputText(body[key] ?? '', label, max, required);
   }
+  requireValue(categories.has(record.category), 'Choose a category from the dropdown.');
   for (const key of ['wholesale', 'mrp']) {
     requireValue(!record[key] || /^\d{1,10}(\.\d{1,2})?$/.test(record[key]), 'Enter a valid INR price.');
   }
@@ -270,41 +278,24 @@ async function imageDownload(id, offset, res) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   try {
-    const { PORTAL_PASSWORD, SESSION_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN,
+    const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN,
       GOOGLE_DRIVE_FOLDER_ID } = process.env;
-    requireValue(PORTAL_PASSWORD?.length >= 16 && SESSION_SECRET?.length >= 32 && GOOGLE_CLIENT_ID &&
+    requireValue(GOOGLE_CLIENT_ID &&
       GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN && idPattern.test(GOOGLE_DRIVE_FOLDER_ID ?? ''),
       'The portal owner needs to finish setup.', 503);
     const url = new URL(req.url, 'http://localhost');
     const action = url.searchParams.get('action');
-    const session = /(?:^|;\s*)gadget_portal=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
     if (req.method === 'POST') {
       requireValue(req.headers['content-type']?.split(';')[0] === 'application/json', 'Use JSON requests.', 415);
       requireValue(!req.headers.origin || new URL(req.headers.origin).host === req.headers.host,
         'Request origin is invalid.', 403);
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {};
-      if (action === 'login') {
-        requireValue(typeof body.password === 'string' && equal(body.password, PORTAL_PASSWORD),
-          'That access password is incorrect.', 401);
-        const token = sign({ kind: 'session', expires: Date.now() + 7 * 86400000 });
-        res.setHeader('Set-Cookie', 'gadget_portal=' + token +
-          '; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800' + (process.env.VERCEL ? '; Secure' : ''));
-        return res.json({ ok: true });
-      }
-      if (action === 'logout') {
-        res.setHeader('Set-Cookie', 'gadget_portal=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' +
-          (process.env.VERCEL ? '; Secure' : ''));
-        return res.json({ ok: true });
-      }
-      requireValue(verify(session, 'session'), 'Please sign in to continue.', 401);
       if (action === 'new') return res.json({ id: await newId() });
       if (action === 'start-image') return res.json(await startImage(body));
       if (action === 'image-chunk') return res.json(await imageChunk(body));
       if (action === 'save') return res.json(await saveProduct(body));
     }
     if (req.method === 'GET') {
-      requireValue(verify(session, 'session'), 'Please sign in to continue.', 401);
-      if (action === 'session') return res.json({ ok: true });
       if (action === 'history') return res.json(await history(url.searchParams.get('page')));
       if (action === 'preview') return await imagePreview(url.searchParams.get('id') ?? '', res);
       if (action === 'download') {
