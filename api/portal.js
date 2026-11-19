@@ -3,7 +3,6 @@ import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 const drive = 'https://www.googleapis.com/drive/v3';
 const upload = 'https://www.googleapis.com/upload/drive/v3';
 const chunkSize = 2 * 1024 * 1024;
-const maxImage = 50 * 1024 * 1024;
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif']);
 const categories = new Set([
   'Protection and Screen Accessories',
@@ -141,8 +140,8 @@ async function startImage(body) {
   requireValue(idPattern.test(body.product) && typeof body.product === 'string', 'Invalid submission.');
   const name = inputText(body.name, 'Image filename', 255, true);
   const { mime, size } = body;
-  requireValue(imageTypes.has(mime) && Number.isSafeInteger(size) && size > 0 && size <= maxImage,
-    'Choose a supported image up to 50 MB.');
+  requireValue(imageTypes.has(mime) && Number.isSafeInteger(size) && size > 0,
+    'Choose a supported image with content.');
   const id = body.id ?? await newId();
   requireValue(typeof id === 'string' && idPattern.test(id), 'Invalid image ID.');
   if (body.id) {
@@ -261,7 +260,7 @@ async function imageDownload(id, offset, res) {
   const file = await lookup(id);
   requireValue(owned(file, 'image') && imageTypes.has(file.mimeType), 'Image unavailable.', 404);
   const size = Number(file.size);
-  requireValue(offset < size && size <= maxImage, 'Invalid image range.');
+  requireValue(Number.isSafeInteger(size) && offset < size, 'Invalid image range.');
   const end = Math.min(offset + chunkSize, size) - 1;
   const response = await google(fileUrl(id, { alt: 'media' }), {
     headers: { Range: 'bytes=' + offset + '-' + end },

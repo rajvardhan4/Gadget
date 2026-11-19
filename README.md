@@ -23,6 +23,6 @@ Run `npm run dev` and open the printed URL. Without Google credentials, the port
 
 ## Upload behavior
 
-JPEG, PNG, WebP, GIF, AVIF, HEIC and HEIF files are accepted up to 50 MB each. The form places no fixed limit on the number of images per submission. Original files stream through small requests to respect Vercel's request size limit. Drive quota and storage still apply. Browser support for previews varies by image format. Originals remain downloadable.
+The portal accepts JPEG, PNG, WebP, GIF, AVIF, HEIC and HEIF without a portal-imposed limit on image size or count. Original files upload in small requests to respect Vercel's request limit. Google Drive's file-size limits, quota and available storage still apply. Browser support for previews varies by image format. Originals remain downloadable.
 
 Keep the form open until it confirms that the product was saved. After an interrupted upload, retry in the same tab to reuse completed images. Drive receives images before the product record is committed. If a form is abandoned partway through, already uploaded images can remain in the Drive folder without a product JSON record. History displays committed product records only.

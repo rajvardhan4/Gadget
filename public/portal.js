@@ -88,8 +88,8 @@ function addFiles(files) {
   for (const file of files) {
     const mime = Object.values(mimeByExt).includes(file.type)
       ? file.type : mimeByExt[file.name.split('.').pop().toLowerCase()];
-    if (!mime || !file.size || file.size > 50 * 1048576 || file.name.length > 255) {
-      errors.push(file.name + ' could not be added. Choose a supported image up to 50 MB with a shorter filename.');
+    if (!mime || !file.size || file.name.length > 255) {
+      errors.push(file.name + ' could not be added. Choose a supported image with content and a filename up to 255 characters.');
       continue;
     }
     if (chosen.some(item => item.file.name === file.name && item.file.size === file.size &&
