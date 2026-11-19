@@ -3,6 +3,7 @@ import { uploadPresigned } from '@vercel/blob/client';
 const byId = id => document.getElementById(id);
 const fileInput = byId('files');
 const form = byId('product-form');
+const editAccessDialog = byId('edit-access-dialog');
 const chosen = [];
 const mimeByExt = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
@@ -16,6 +17,8 @@ let nextPage;
 let editing;
 let editorKey;
 let editorAllowed = false;
+let editorConnection;
+let requestedEdit;
 
 function message(id, text, error = false) {
   const element = byId(id);
@@ -299,11 +302,17 @@ function renderRecord(record) {
   }
   const images = element('ul', '', 'gallery');
   const actions = element('div', '', 'record-actions');
-  if (editorAllowed) {
-    const edit = element('button', 'Edit submission', 'primary');
-    edit.addEventListener('click', () => startEdit(record));
-    actions.append(edit);
-  }
+  const edit = element('button', 'Edit submission', 'primary');
+  edit.addEventListener('click', async () => {
+    await editorConnection;
+    if (editorAllowed) {
+      startEdit(record);
+    } else if (!editAccessDialog.open) {
+      requestedEdit = record;
+      editAccessDialog.showModal();
+    }
+  });
+  actions.append(edit);
   const download = element('button', 'Download product data', 'secondary');
   download.addEventListener('click', () => {
     downloadFile(new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }),
@@ -372,20 +381,66 @@ byId('form-tab').addEventListener('click', () => {
 byId('history-tab').addEventListener('click', () => openHistory());
 byId('more').addEventListener('click', () => loadHistory(Boolean(nextPage)));
 
+function keyFromHash(hash) {
+  return new URLSearchParams(hash.slice(1)).get('edit');
+}
+
+async function authorizeEditor(key) {
+  editorKey = key;
+  editorAllowed = false;
+  await api('edit-access');
+  editorAllowed = true;
+  sessionStorage.setItem('portal-edit-key', key);
+}
+
 async function connectEditor() {
-  const key = new URLSearchParams(location.hash.slice(1)).get('edit');
-  editorKey = key ?? sessionStorage.getItem('portal-edit-key');
+  const key = keyFromHash(location.hash);
+  const savedKey = key ?? sessionStorage.getItem('portal-edit-key');
   if (key) history.replaceState(null, '', location.pathname + location.search);
-  if (!editorKey) return;
+  if (!savedKey) return;
   try {
-    await api('edit-access');
-    editorAllowed = true;
-    sessionStorage.setItem('portal-edit-key', editorKey);
-    if (key || !byId('history').hidden) await openHistory();
+    await authorizeEditor(savedKey);
+    if (key && !editing) await openHistory();
   } catch (error) {
-    sessionStorage.removeItem('portal-edit-key');
+    if (error.status === 403) sessionStorage.removeItem('portal-edit-key');
     notice(error.message);
   }
 }
 
-void connectEditor();
+byId('edit-access-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = byId('unlock-edit');
+  if (button.disabled) return;
+  const link = new URL(byId('edit-link').value);
+  const key = link.origin === location.origin && keyFromHash(link.hash);
+  if (!key) {
+    message('edit-access-message', 'Paste the full private edit link for this portal.', true);
+    return;
+  }
+  button.disabled = true;
+  const record = requestedEdit;
+  message('edit-access-message', '');
+  try {
+    await authorizeEditor(key);
+    if (editAccessDialog.open && requestedEdit === record) {
+      editAccessDialog.close();
+      startEdit(record);
+    }
+  } catch (error) {
+    if (editAccessDialog.open) message('edit-access-message', error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+byId('cancel-edit-access').addEventListener('click', () => editAccessDialog.close());
+editAccessDialog.addEventListener('close', () => {
+  requestedEdit = undefined;
+  byId('edit-access-form').reset();
+  message('edit-access-message', '');
+});
+
+editorConnection = connectEditor();
+window.addEventListener('hashchange', () => {
+  editorConnection = connectEditor();
+});

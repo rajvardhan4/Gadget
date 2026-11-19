@@ -75,6 +75,10 @@ textarea { resize: vertical; }
 .record dt { font-weight: 650; }
 .record dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .record-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+#edit-access-dialog { width: min(440px, calc(100% - 32px)); color: inherit; }
+#edit-access-dialog::backdrop { background: rgb(13 35 32 / 55%); }
+#edit-access-form { margin-top: 16px; }
+#edit-access-form .record-actions, #edit-access-message { margin-top: 12px; }
 .gallery { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 12px; }
 .gallery a { display: block; overflow-wrap: anywhere; font-size: .87rem; width: 100%; text-align: left; background: #f6faf8; color: var(--green); border: 1px solid var(--line); border-radius: 9px; padding: 7px; }
 .gallery img { width: 100%; aspect-ratio: 4 / 3; display: block; object-fit: contain; background: #eef4f1; border-radius: 7px; margin-bottom: 5px; }
