@@ -42,7 +42,7 @@ const server = createServer(async (req, res) => {
   }
   const [filename, mime] = asset;
   res.setHeader('Content-Type', mime);
-  res.end(await readFile(new URL('../public/' + filename, import.meta.url)));
+  res.end(await readFile(new URL('../dist/' + filename, import.meta.url)));
 });
 
 server.listen(Number(process.env.PORT ?? 3000), '127.0.0.1', () => {

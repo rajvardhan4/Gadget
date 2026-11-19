@@ -1,8 +1,9 @@
+import { uploadPresigned } from '@vercel/blob/client';
+
 const byId = id => document.getElementById(id);
 const fileInput = byId('files');
 const form = byId('product-form');
 const chosen = [];
-const chunkSize = 2 * 1024 * 1024;
 const mimeByExt = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
   gif: 'image/gif', avif: 'image/avif', heic: 'image/heic', heif: 'image/heif',
@@ -113,30 +114,23 @@ for (const event of ['dragover', 'dragleave', 'drop']) {
   });
 }
 
-function encodeChunk(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = () => reject(new Error('Could not read an image. Please retry.'));
-    reader.readAsDataURL(blob);
-  });
-}
-
 async function uploadImage(item, index) {
   const { file, mime } = item;
-  const start = await api('start-image', { product: productId, name: file.name, mime, size: file.size, id: item.id });
-  item.id = start.id;
-  if (start.done) return;
-  for (let offset = 0; offset < file.size;) {
-    const progress = Math.floor(offset / file.size * 100);
-    message('submit-message', 'Uploading image ' + (index + 1) + ' of ' + chosen.length + ' (' + progress + '%)...');
-    const data = await encodeChunk(file.slice(offset, offset + chunkSize));
-    const result = await api('image-chunk', { ticket: start.ticket, offset, data });
-    if (result.offset !== Math.min(offset + chunkSize, file.size)) {
-      throw new Error('Drive did not receive the full chunk. Retry this submission.');
-    }
-    offset = result.offset;
-  }
+  const extension = Object.keys(mimeByExt).find(key => mimeByExt[key] === mime);
+  const pathname = 'images/' + productId + '/' + crypto.randomUUID() + '.' + extension;
+  const position = 'Uploading image ' + (index + 1) + ' of ' + chosen.length;
+  message('submit-message', position + '...');
+  const result = await uploadPresigned(pathname, file, {
+    access: 'private',
+    contentType: mime,
+    handleUploadUrl: '/api/portal?action=upload',
+    clientPayload: JSON.stringify({ mime }),
+    multipart: file.size > 5 * 1024 * 1024,
+    onUploadProgress: ({ percentage }) => {
+      message('submit-message', position + ' (' + Math.floor(percentage) + '%)...');
+    },
+  });
+  item.id = result.pathname;
 }
 
 function lockForm() {
@@ -175,9 +169,9 @@ form.addEventListener('submit', async event => {
           item.uploaded = true;
         }
       }
-      pendingSave = { ...fields, id: productId, images: chosen.map(item => item.id) };
+      pendingSave = { ...fields, id: productId, images: chosen.map(item => ({ id: item.id, name: item.file.name })) };
     }
-    message('submit-message', 'Saving product details to Drive...');
+    message('submit-message', 'Saving product details...');
     const saved = await api('save', pendingSave);
     chosen.splice(0).forEach(item => URL.revokeObjectURL(item.url));
     form.reset();
@@ -185,7 +179,7 @@ form.addEventListener('submit', async event => {
     pendingSave = undefined;
     message('submit-message', '');
     message('file-message', '');
-    notice(saved.name + ' was saved to Google Drive.');
+    notice(saved.name + ' was saved.');
     await openHistory(saved);
   } catch (error) {
     if (error.status === 400) pendingSave = undefined;
@@ -210,22 +204,6 @@ function downloadFile(blob, name) {
   setTimeout(() => URL.revokeObjectURL(uri), 1000);
 }
 
-async function downloadImage(image) {
-  const chunks = [];
-  let size;
-  for (let offset = 0; size === undefined || offset < size;) {
-    const params = new URLSearchParams({ action: 'download', id: image.id, offset });
-    const response = await fetch('/api/portal?' + params);
-    if (!response.ok) throw new Error('Could not download the image. Please try again.');
-    size = Number(response.headers.get('X-Image-Size'));
-    const chunk = await response.blob();
-    if (!size || !chunk.size) throw new Error('The image download was incomplete.');
-    chunks.push(chunk);
-    offset += chunk.size;
-  }
-  downloadFile(new Blob(chunks, { type: image.mime }), image.name);
-}
-
 function renderRecord(record) {
   const details = element('details', '', 'card record');
   const summary = element('summary');
@@ -238,8 +216,6 @@ function renderRecord(record) {
     if (record[key]) fields.append(element('dt', label), element('dd', record[key]));
   }
   const images = element('ul', '', 'gallery');
-  const downloadStatus = element('p', '', 'message');
-  downloadStatus.setAttribute('role', 'status');
   const download = element('button', 'Download product data', 'secondary');
   download.addEventListener('click', () => {
     downloadFile(new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }),
@@ -249,31 +225,20 @@ function renderRecord(record) {
     if (!details.open || images.childElementCount) return;
     for (const image of record.images) {
       const item = element('li');
-      const button = element('button');
-      button.setAttribute('aria-label', 'Download ' + image.name);
-      button.addEventListener('click', async () => {
-        button.disabled = true;
-        downloadStatus.textContent = 'Downloading ' + image.name + '...';
-        try {
-          await downloadImage(image);
-          downloadStatus.textContent = '';
-        } catch (error) {
-          downloadStatus.textContent = error.message;
-        } finally {
-          button.disabled = false;
-        }
-      });
+      const link = element('a');
+      link.href = '/api/portal?action=download&id=' + encodeURIComponent(image.id);
+      link.setAttribute('aria-label', 'Download ' + image.name);
       const preview = element('img');
       preview.alt = '';
       preview.loading = 'lazy';
       preview.src = '/api/portal?action=preview&id=' + encodeURIComponent(image.id);
       preview.addEventListener('error', () => preview.remove());
-      button.append(preview, document.createTextNode(image.name));
-      item.append(button);
+      link.append(preview, document.createTextNode(image.name));
+      item.append(link);
       images.append(item);
     }
   });
-  details.append(fields, images, downloadStatus, download);
+  details.append(fields, images, download);
   return details;
 }
 

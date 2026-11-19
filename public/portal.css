@@ -75,7 +75,7 @@ textarea { resize: vertical; }
 .record dt { font-weight: 650; }
 .record dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .gallery { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 12px; }
-.gallery button { overflow-wrap: anywhere; font-size: .87rem; width: 100%; text-align: left; background: #f6faf8; color: var(--green); border: 1px solid var(--line); border-radius: 9px; padding: 7px; }
+.gallery a { display: block; overflow-wrap: anywhere; font-size: .87rem; width: 100%; text-align: left; background: #f6faf8; color: var(--green); border: 1px solid var(--line); border-radius: 9px; padding: 7px; }
 .gallery img { width: 100%; aspect-ratio: 4 / 3; display: block; object-fit: contain; background: #eef4f1; border-radius: 7px; margin-bottom: 5px; }
 #more { margin-bottom: 32px; }
 @media (max-width: 720px) {
