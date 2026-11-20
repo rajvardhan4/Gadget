@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#122b2a">
   <title>Product Portal | Gadgets Factory Direct</title>
-  <link rel="stylesheet" href="/portal.css?v=direct-edit">
-  <script type="module" src="/portal.js?v=direct-edit"></script>
+  <link rel="stylesheet" href="/portal.css?v=catalog-export">
+  <script type="module" src="/portal.js?v=catalog-export"></script>
 </head>
 <body>
   <header class="top">
@@ -70,7 +70,12 @@
         </form>
       </section>
       <section id="history" hidden>
-        <div class="intro"><h1 id="history-title" tabindex="-1">Submission history</h1><p class="muted">Review the product details and images you have sent.</p></div>
+        <div class="intro"><h1 id="history-title" tabindex="-1">Submission history</h1><p id="history-description" class="muted">Review the product details and images you have sent.</p></div>
+        <div class="history-actions">
+          <button id="download-all" type="button" class="primary">Download all</button>
+          <button id="toggle-trash" type="button" class="secondary">View Trash</button>
+        </div>
+        <p id="history-action-message" class="message" role="status"></p>
         <p id="history-message" class="message" role="status"></p>
         <div id="records" class="records"></div>
         <button id="more" class="secondary" hidden>Load more</button>

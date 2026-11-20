@@ -74,7 +74,10 @@ textarea { resize: vertical; }
 .record dl { display: grid; grid-template-columns: minmax(115px, 160px) minmax(0, 1fr); gap: 8px 12px; }
 .record dt { font-weight: 650; }
 .record dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.record-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.record-actions, .history-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.history-actions { margin-bottom: 14px; }
+.danger { color: #952d2b; border-color: #d5a5a3; }
+#history-action-message { margin-bottom: 12px; }
 .record-actions + .message { margin-top: 10px; }
 .gallery { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 12px; }
 .gallery a { display: block; overflow-wrap: anywhere; font-size: .87rem; width: 100%; text-align: left; background: #f6faf8; color: var(--green); border: 1px solid var(--line); border-radius: 9px; padding: 7px; }

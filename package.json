@@ -10,7 +10,8 @@
     "node": "24.x"
   },
   "dependencies": {
-    "@vercel/blob": "^2.9.0"
+    "@vercel/blob": "^2.9.0",
+    "@zip.js/zip.js": "^2.25.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

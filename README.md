@@ -14,6 +14,12 @@ Images and product JSON are stored under images/ and products/ in the linked Blo
 
 Set `PORTAL_EDIT_KEY_HASH` to the SHA-256 hex digest of a random 32-byte base64url key. Share the portal URL with `#edit=<key>` privately. Opening it grants edit access to that browser for seven days. The normal portal link then also works in that browser. Under Submission history, choose a product and click Edit submission. Saving updates the existing entry and keeps previously saved images attached.
 
+## Catalog export and Trash
+
+From a browser with edit access, open Submission history and choose **Download all**. The ZIP contains `products.json`, `products.csv`, and the original images for every active submission across all pages. Image paths in both catalog files are relative to the archive. Use the JSON and images for AI-assisted import.
+
+**Delete** moves a single submission out of active history and into Trash. **View Trash** and **Restore** bring the entry and all its images back. Trash does not permanently delete files, and trashed submissions are excluded from bulk exports until restored.
+
 ## Local development
 
 Run npm ci, then npm run dev. Use a separate test Blob store for development and provide local Vercel OIDC credentials or a test store's BLOB_READ_WRITE_TOKEN in .env.

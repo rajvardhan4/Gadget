@@ -13,6 +13,7 @@ let pendingSave;
 let busy = false;
 let historyBusy = false;
 let nextPage;
+let showTrash = false;
 let editing;
 let editorSetup;
 
@@ -280,6 +281,33 @@ function downloadFile(blob, name) {
   setTimeout(() => URL.revokeObjectURL(uri), 1000);
 }
 
+async function withEditAccess(button, report, action) {
+  button.disabled = true;
+  report('');
+  try {
+    await editorSetup;
+    await action();
+  } catch (error) {
+    report(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderTrashAction(record, report) {
+  const deleted = Boolean(record.deletedAt);
+  const button = element('button', deleted ? 'Restore' : 'Delete', deleted ? 'secondary' : 'secondary danger');
+  button.addEventListener('click', () => {
+    if (!deleted && !window.confirm('Move "' + record.name + '" to Trash? You can restore it later.')) return;
+    void withEditAccess(button, report, async () => {
+      await api(deleted ? 'restore' : 'delete', { id: record.id, baseRevision: record.revision ?? null });
+      await loadHistory();
+      notice(record.name + (deleted ? ' was restored.' : ' was moved to Trash.'));
+    });
+  });
+  return button;
+}
+
 function renderRecord(record) {
   const details = element('details', '', 'card record');
   const summary = element('summary');
@@ -296,20 +324,14 @@ function renderRecord(record) {
   const edit = element('button', 'Edit submission', 'primary');
   const editMessage = element('p', '', 'message error');
   editMessage.setAttribute('role', 'status');
-  edit.addEventListener('click', async () => {
-    edit.disabled = true;
-    editMessage.textContent = '';
-    try {
-      await editorSetup;
+  const report = text => { editMessage.textContent = text; };
+  if (!record.deletedAt) {
+    edit.addEventListener('click', () => withEditAccess(edit, report, async () => {
       await api('edit-access');
-      if (!byId('history').hidden) startEdit(record);
-    } catch (error) {
-      editMessage.textContent = error.message;
-    } finally {
-      edit.disabled = false;
-    }
-  });
-  actions.append(edit);
+      if (!showTrash && !byId('history').hidden) startEdit(record);
+    }));
+    actions.append(edit);
+  }
   const download = element('button', 'Download product data', 'secondary');
   download.addEventListener('click', () => {
     downloadFile(new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }),
@@ -332,7 +354,7 @@ function renderRecord(record) {
       images.append(item);
     }
   });
-  actions.append(download);
+  actions.append(download, renderTrashAction(record, report));
   details.append(fields, images, actions, editMessage);
   return details;
 }
@@ -340,6 +362,7 @@ function renderRecord(record) {
 async function loadHistory(append = false, saved) {
   if (historyBusy) return;
   historyBusy = true;
+  byId('toggle-trash').disabled = true;
   byId('more').hidden = true;
   message('history-message', 'Loading submissions...');
   if (!append) {
@@ -349,11 +372,18 @@ async function loadHistory(append = false, saved) {
     byId('records').replaceChildren(...(savedRow ? [savedRow] : []));
   }
   try {
-    const data = await api('history', undefined, nextPage ? { page: nextPage } : {});
-    const records = data.records.filter(record => record.id !== saved?.id);
+    const action = showTrash ? 'trash' : 'history';
+    let page = nextPage;
+    let records;
+    do {
+      const data = await api(action, undefined, page ? { page } : {});
+      page = data.next;
+      records = data.records.filter(record => record.id !== saved?.id);
+    } while (!records.length && page);
     byId('records').append(...records.map(renderRecord));
-    nextPage = data.next;
-    message('history-message', byId('records').childElementCount ? '' : 'No products submitted yet.');
+    nextPage = page;
+    const empty = showTrash ? 'Trash is empty.' : 'No products submitted yet.';
+    message('history-message', byId('records').childElementCount ? '' : empty);
   } catch (error) {
     message('history-message', error.message, true);
     byId('more').textContent = 'Retry history';
@@ -361,15 +391,50 @@ async function loadHistory(append = false, saved) {
     return;
   } finally {
     historyBusy = false;
+    byId('toggle-trash').disabled = false;
   }
   byId('more').textContent = 'Load more';
   byId('more').hidden = !nextPage;
 }
 
 async function openHistory(saved) {
+  if (historyBusy) return;
+  setHistoryView(false);
   setTab(true);
   await loadHistory(false, saved);
 }
+
+function setHistoryView(trashed) {
+  showTrash = trashed;
+  byId('history-title').textContent = trashed ? 'Trash' : 'Submission history';
+  byId('history-description').textContent = trashed
+    ? 'Restore a submission to bring it and its images back to history.'
+    : 'Review the product details and images you have sent.';
+  byId('toggle-trash').textContent = trashed ? 'Back to history' : 'View Trash';
+  byId('download-all').hidden = trashed;
+  message('history-action-message', '');
+}
+
+const reportHistoryAction = (text, error) => message('history-action-message', text, error);
+const trashButton = byId('toggle-trash');
+trashButton.addEventListener('click', () => withEditAccess(trashButton, reportHistoryAction, async () => {
+  if (!showTrash) await api('edit-access');
+  if (historyBusy || byId('history').hidden) return;
+  notice('');
+  setHistoryView(!showTrash);
+  await loadHistory();
+  byId('history-title').focus();
+}));
+
+const exportButton = byId('download-all');
+exportButton.addEventListener('click', () => withEditAccess(exportButton, reportHistoryAction, async () => {
+  await api('edit-access');
+  const anchor = element('a');
+  anchor.href = '/api/portal?action=export';
+  anchor.download = '';
+  anchor.click();
+  reportHistoryAction('Your ZIP download will appear in your browser downloads.');
+}));
 
 byId('form-tab').addEventListener('click', () => {
   setTab(false);

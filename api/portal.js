@@ -60,10 +60,40 @@ function editorCookie(req) {
   return /(?:^|;\s*)portal_editor=([A-Za-z0-9_-]{43})(?:;|$)/.exec(req.headers.cookie ?? '')?.[1];
 }
 
-async function history(cursor) {
+async function history(cursor, trashed = false) {
   const result = await list({ prefix: recordPrefix, limit: 12, cursor });
   const records = await Promise.all(result.blobs.map(blob => readRecord(blob.pathname)));
-  return { records: records.filter(Boolean), next: result.hasMore ? result.cursor : undefined };
+  return {
+    records: records.filter(record => record && Boolean(record.deletedAt) === trashed),
+    next: result.hasMore ? result.cursor : undefined,
+  };
+}
+
+async function setTrashed(body, trashed) {
+  const { id, baseRevision } = body;
+  requireValue(typeof id === 'string' && productPattern.test(id), 'Invalid submission ID.');
+  const pathname = recordPath(id);
+  const current = await readRecordBlob(pathname);
+  requireValue(current, 'This submission could not be found.', 404);
+  const { record, etag } = current;
+  if (Boolean(record.deletedAt) === trashed) return record;
+  const conflict = 'This submission changed. Refresh history and try again.';
+  requireValue((record.revision ?? null) === baseRevision, conflict, 409);
+  if (trashed) {
+    record.deletedAt = new Date().toISOString();
+  } else {
+    delete record.deletedAt;
+  }
+  record.revision = randomUUID();
+  try {
+    await put(pathname, JSON.stringify(record), {
+      ...privateAccess, contentType: 'application/json', allowOverwrite: true, ifMatch: etag,
+    });
+  } catch (error) {
+    if (error instanceof BlobPreconditionFailedError) throw new RequestError(409, conflict);
+    throw error;
+  }
+  return record;
 }
 
 async function uploadTicket(req, body) {
@@ -95,6 +125,7 @@ async function saveProduct(body, editing = false) {
   const pathname = recordPath(id);
   const current = await readRecordBlob(pathname);
   const existing = current?.record;
+  requireValue(!existing?.deletedAt, 'This submission is in Trash. Restore it before editing.', 409);
   if (editing) {
     requireValue(existing, 'This submission could not be found.', 404);
     requireValue(typeof body.revision === 'string' && revisionPattern.test(body.revision), 'Invalid edit revision.');
@@ -163,11 +194,12 @@ async function saveProduct(body, editing = false) {
   return record;
 }
 
-async function imageRedirect(pathname, download, res) {
+async function imageRedirect(pathname, download, req, res) {
   const match = imagePattern.exec(pathname);
   requireValue(match, 'Invalid image path.');
   const record = await readRecord(recordPath(match[1]));
   requireValue(record?.images.some(image => image.id === pathname), 'Image unavailable.', 404);
+  if (record.deletedAt) requireEditor(editorCookie(req));
   const validUntil = Date.now() + 5 * 60 * 1000;
   const token = await issueSignedToken({ pathname, operations: ['get'], validUntil });
   const { presignedUrl } = await presignUrl(token, { pathname, operation: 'get', ...privateAccess, validUntil });
@@ -204,20 +236,37 @@ export default async function handler(req, res) {
         requireEditor(editorCookie(req));
         return res.json(await saveProduct(body, true));
       }
+      if (action === 'delete' || action === 'restore') {
+        requireEditor(editorCookie(req));
+        return res.json(await setTrashed(body, action === 'delete'));
+      }
     }
     if (req.method === 'GET') {
       if (action === 'history') return res.json(await history(url.searchParams.get('page') ?? undefined));
+      if (action === 'trash') {
+        requireEditor(editorCookie(req));
+        return res.json(await history(url.searchParams.get('page') ?? undefined, true));
+      }
+      if (action === 'export') {
+        requireEditor(editorCookie(req));
+        const { streamCatalogZip } = await import('../lib/catalog-export.js');
+        return await streamCatalogZip(res, history);
+      }
       if (action === 'edit-access') {
         requireEditor(editorCookie(req));
         return res.json({ allowed: true });
       }
       if (action === 'preview' || action === 'download') {
-        return await imageRedirect(url.searchParams.get('id') ?? '', action === 'download', res);
+        return await imageRedirect(url.searchParams.get('id') ?? '', action === 'download', req, res);
       }
     }
     throw new RequestError(404, 'This action is unavailable.');
   } catch (error) {
     if (!(error instanceof RequestError)) console.error('Portal storage error', error.name);
+    if (res.headersSent || res.destroyed) {
+      if (!res.destroyed) res.destroy(error);
+      return;
+    }
     return res.status(error.status ?? 502).json({
       error: error.status ? error.message : 'Storage could not complete the request. Please try again.',
     });
