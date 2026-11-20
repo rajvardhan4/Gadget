@@ -9,6 +9,8 @@ const categories = new Set([
   'Audio & Lifestyle Electronics',
   'Gaming & Utility Mobile Tools',
   'Power and Fast Charging Tech',
+  'Mounts, Stands & Creator Gear (Ring Lights, Tripods, Bike Mounts)',
+  'Drones & Smart Gadgets',
 ]);
 const recordPrefix = 'products/';
 const privateAccess = { access: 'private' };
