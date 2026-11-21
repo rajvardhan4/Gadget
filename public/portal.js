@@ -444,17 +444,40 @@ byId('history-tab').addEventListener('click', () => openHistory());
 byId('more').addEventListener('click', () => loadHistory(Boolean(nextPage)));
 
 async function rememberEditAccess() {
-  const linkKey = new URLSearchParams(location.hash.slice(1)).get('edit');
-  if (linkKey) history.replaceState(null, '', location.pathname + location.search);
-  const key = linkKey ?? sessionStorage.getItem('portal-edit-key');
+  const fragment = location.hash;
+  const linkKey = new URLSearchParams(fragment.slice(1)).get('edit');
+  let key = linkKey;
+  try {
+    key ??= sessionStorage.getItem('portal-edit-key');
+  } catch {
+    // The private link can still work if session storage is blocked.
+  }
   if (!key) return;
+  let cookieIssued = false;
   try {
     await api('edit-access', { key });
-    sessionStorage.removeItem('portal-edit-key');
-    if (linkKey && !editing) await openHistory();
+    cookieIssued = true;
+    await api('edit-access');
   } catch (error) {
-    if (error.status === 403) sessionStorage.removeItem('portal-edit-key');
-    notice(error.message);
+    if (location.hash !== fragment) return;
+    if (error.status === 403) {
+      notice(cookieIssued
+        ? 'Allow cookies for this site, then refresh this private edit link.'
+        : 'This private edit link is invalid. Use the latest link shared with you.');
+    } else {
+      notice('Edit access could not be activated. Refresh this page to retry.');
+    }
+    return;
+  }
+  try {
+    sessionStorage.removeItem('portal-edit-key');
+  } catch {
+    // Successful activation is stored in the server-issued cookie.
+  }
+  if (linkKey && location.hash === fragment) {
+    history.replaceState(null, '', location.pathname + location.search);
+    notice('Edit access is active in this browser.');
+    if (!editing) await openHistory();
   }
 }
 
