@@ -20,5 +20,17 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "https://gadgetfactorydirect.com/product-portal/",
+      "permanent": false
+    },
+    {
+      "source": "/index.html",
+      "destination": "https://gadgetfactorydirect.com/product-portal/",
+      "permanent": false
+    }
   ]
 }
